@@ -1,0 +1,39 @@
+# Foreman proxy to which reports should be uploaded
+SERVER="foreman_proxy.example.com"
+PORT=8443
+
+# Timeout for sending reports to proxy
+TIMEOUT=60
+
+# Should --fetch-remote-resources be added to `oscap xccdf eval` command
+FETCH_REMOTE_RESOURCES="true"
+
+# HTTP proxy server for downloading remote resources
+HTTP_PROXY_SERVER=""
+HTTP_PROXY_PORT=""
+
+# SSL specific options
+CA_FILE="/var/lib/puppet/ssl/certs/ca.pem"
+# this client certificate, usually the same that puppet agent use
+HOST_CERTIFICATE="/var/lib/puppet/ssl/certs/client.example.com.pem"
+# this client private key, usually the same that puppet agent use
+HOST_PRIVATE_KEY="/var/lib/puppet/ssl/private_keys/client.example.com.pem"
+# optional cipher list if endpoints are hardened
+CIPHERS=("AES256-SHA:AES128-SHA:DES-CBC3-SHA")
+
+# policy_key (key is id as in Foreman)
+  # which profile should be run on this client (use profile id)
+  # you can find out the profile id from ds file by running oscap info name-ds.xml
+  # leave empty for default profile
+POLICY_1_PROFILE=""
+  # ds input file
+POLICY_1_CONTENT_PATH="/usr/share/xml/scap/ssg/content/ssg-fedora-ds.xml"
+POLICY_1_DOWLOAD_PATH=""
+POLICY_1_TAILORING_PATH=""
+POLICY_1_TAILORING_DOWLOAD_PATH=""
+
+POLICY_2_PROFILE="xccdf_org.ssgproject.content_profile_common"
+POLICY_2_CONTENT_PATH="/usr/share/xml/scap/ssg/content/ssg-fedora-ds.xml"
+POLICY_2_DOWLOAD_PATH=""
+POLICY_2_TAILORING_PATH=""
+POLICY_2_TAILORING_DOWLOAD_PATH=""

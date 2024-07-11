@@ -1,0 +1,263 @@
+#!/usr/bin/env bash
+
+foreman_proxy_uri () {
+  echo "https://$SERVER:$PORT"
+}
+
+# Params: download_path
+download_uri () {
+  local uri=$(foreman_proxy_uri)
+  echo "$uri$1"
+}
+
+upload_uri () {
+  echo "$(foreman_proxy_uri)/compliance/arf/$POLICY_ID"
+}
+
+# Ensures that a file exists by downloading it if necessary
+# Params: filename_path, download_path, type_humanized
+ensure_file () {
+  if [ -f $1 ]; then
+    return 0
+  else
+    echo "File $1 is missing. Downloading it from proxy."
+    mkdir -p $(dirname $1)
+    local uri=$(download_uri $2)
+    echo "Download $3 xml from: $uri"
+    local curl_ssl_opts="--silent --show-error --cacert $CA_FILE --cert $HOST_CERTIFICATE --key $HOST_PRIVATE_KEY"
+    if [ -n "$CIPHERS" ]; then
+      curl_ssl_opts="$curl_ssl_opts --ciphers ${CIPHERS[@]}"
+    fi
+    local result=$(curl $curl_ssl_opts --output $1 $uri 2>&1)
+    if [ $? -ne 0 ]; then
+      echo "$3 is missing and download failed with error: $result"
+      exit 5
+    fi
+  fi
+}
+
+ensure_scan_files () {
+  ensure_file $POLICY_CONTENT_PATH $POLICY_DOWNLOAD_PATH "SCAP content"
+  if [ -n "$POLICY_TAILORING_PATH" ]; then
+    ensure_file $POLICY_TAILORING_PATH $POLICY_TAILORING_DOWNLOAD_PATH "Tailoring file"
+  fi
+}
+
+load_config () {
+  local config_file="/etc/foreman_scap_client/config"
+
+  # Load config file
+  if [ -f $config_file ]; then
+    source $config_file
+  else
+    echo "Config file could not be loaded"
+    echo "$config_file does not exist"
+    exit 1
+  fi
+
+  # Set current policy values
+  # We expect the following variables to be set in the config file
+  # Absence of a variable will cause the script to exit
+  # For empty values, the variable must be set to an empty string
+  POLICY_PROFILE="POLICY_${POLICY_ID}_PROFILE"
+  POLICY_PROFILE=${!POLICY_PROFILE?Policy id $POLICY_ID not found}
+  POLICY_CONTENT_PATH="POLICY_${POLICY_ID}_CONTENT_PATH"
+  POLICY_CONTENT_PATH=${!POLICY_CONTENT_PATH?Policy id $POLICY_ID not found}
+  POLICY_DOWLOAD_PATH="POLICY_${POLICY_ID}_DOWLOAD_PATH"
+  POLICY_DOWLOAD_PATH=${!POLICY_DOWLOAD_PATH?Policy id $POLICY_ID not found}
+  POLICY_TAILORING_PATH="POLICY_${POLICY_ID}_TAILORING_PATH"
+  POLICY_TAILORING_PATH=${!POLICY_TAILORING_PATH?Policy id $POLICY_ID not found}
+  POLICY_TAILORING_DOWLOAD_PATH="POLICY_${POLICY_ID}_TAILORING_DOWLOAD_PATH"
+  POLICY_TAILORING_DOWLOAD_PATH=${!POLICY_TAILORING_DOWLOAD_PATH?Policy id $POLICY_ID not found}
+}
+
+http_proxy_uri () {
+  if [ -n "$HTTP_PROXY_SERVER" ] && [ -n "$HTTP_PROXY_PORT" ]; then
+    echo "http://$HTTP_PROXY_SERVER:$HTTP_PROXY_PORT"
+  else
+    echo ""
+  fi
+}
+
+scan_command_env_vars () {
+  local env_vars=""
+  if [ -n "$(http_proxy_uri)" ]; then
+    env_vars="HTTP_PROXY=$(http_proxy_uri) HTTPS_PROXY=$(http_proxy_uri)"
+  fi
+  echo $env_vars
+}
+
+# Params: version1 version2
+ver_ge () {
+  printf '%s\n%s' "$1" "$2" | sort -C -V -r && echo "true" || echo "false"
+}
+
+supports_local_file_option () {
+  local versions=$(oscap --version)
+  local status=$?
+  if [ $status -ne 0 ]; then
+    echo "false"
+  fi
+  local version=$(echo $versions | awk '{print $NF}' | head -n 1)
+  # OpenSCAP 1.3.6 and newer requires the `--local-files` option to use local copies of remote SDS components
+  if [ "$(ver_ge $version 1.3.6)" == "true" ]; then
+    echo "true"
+  else
+    echo "false"
+  fi
+}
+
+local_files_subcommand () {
+  if [ "$(supports_local_file_option)" == "true" ] && [ "$FETCH_REMOTE_RESOURCES" == "false" ]; then
+    echo "--local-files /root"
+  else
+    echo ""
+  fi
+}
+
+tailoring_subcommand () {
+  if [ -n "$POLICY_TAILORING_PATH" ]; then
+    echo "--tailoring-file $POLICY_TAILORING_PATH"
+  else
+    echo ""
+  fi
+}
+
+results_path () {
+  echo "$TMP_DIR/results.xml"
+}
+
+results_bzip_path () {
+  echo "$(results_path).bz2"
+}
+
+bzip_command () {
+  echo "/usr/bin/env bzip2 $(results_path)"
+}
+
+scan_command () {
+  local profile=""
+  if [ -n "$POLICY_PROFILE" ]; then
+    profile="--profile $POLICY_PROFILE"
+  fi
+  local fetch_remote_resources=""
+  if [ "$FETCH_REMOTE_RESOURCES" == "true" ]; then
+    fetch_remote_resources="--fetch-remote-resources"
+  fi
+  echo "oscap xccdf eval $fetch_remote_resources $(local_files_subcommand) $profile $(tailoring_subcommand) --results-arf $(results_path) $POLICY_CONTENT_PATH"
+}
+
+run_scan () {
+  local env_vars=$(scan_command_env_vars)
+  local command=$(scan_command)
+  local output=""
+  local status=0
+  if [ -n "$env_vars" ]; then
+    output=$(env $env_vars bash -c "$command" 2>&1)
+    status=$?
+  else
+    output=$(bash -c "$command" 2>&1)
+    status=$?
+  fi
+  if [ $status -eq 0 ] || [ $status -eq 2 ]; then
+    printf "$output" | awk '/^WARNING:.*$/ || /^Downloading.*$/{print}'
+  else
+    echo "Scan failed"
+    printf "$output"
+    exit 2
+  fi
+}
+
+scan () {
+  echo "DEBUG: running: $(scan_command)"
+  if [ -n "$(scan_command_env_vars)" ]; then
+    echo "with ENV vars: $(scan_command_env_vars)"
+  fi
+
+  run_scan
+}
+
+bzip () {
+  echo "DEBUG: running: $(bzip_command)"
+  local output=$($(bzip_command))
+  if [ $? -ne 0 ]; then
+    echo "bzip failed"
+    printf "$output"
+    exit 2
+  fi
+}
+
+# TODO: Rewrite without using jq
+# Params: response
+print_upload_result () {
+  local parsed=$(echo $1 | jq .)
+  if [ -n "$parsed" ]; then
+    if [ -n "$(echo $parsed | jq .id)" ]; then
+      echo "Report uploaded, report id: $(echo $parsed | jq .id)"
+    else
+      echo "Report not uploaded from proxy to Foreman server, cause: $(echo $parsed | jq .result)"
+    fi
+  fi
+}
+
+upload () {
+  local uri=$(upload_uri)
+  echo "Uploading results to $uri"
+  local curl_ssl_opts="--silent --show-error --cacert $CA_FILE --cert $HOST_CERTIFICATE --key $HOST_PRIVATE_KEY"
+  if [ -n "$CIPHERS" ]; then
+    curl_ssl_opts="$curl_ssl_opts --ciphers ${CIPHERS[@]}"
+  fi
+  local curl_headers="--header 'Content-Type: text/xml' --header 'Content-Encoding: x-bzip2'"
+  if [ -n "$TIMEOUT" ]; then
+    curl_headers="$curl_headers --max-time $TIMEOUT" # TODO: Change to --connect-timeout?
+  fi
+  local result=$(curl $curl_ssl_opts $curl_headers --data-binary "@$(results_bzip_path)" $uri 2>&1)
+  if [ $? -ne 0 ]; then
+    echo "Upload failed: $result"
+    exit 4
+  fi
+  print_upload_result "$result"
+}
+
+# Params: skip_upload
+run_in_tmpdir () {
+  TMP_DIR=$(mktemp -d)
+  scan
+  bzip
+  if [ "$1" == "false" ]; then
+    upload
+    # TODO: Temp dir is only removed if upload is successful.
+    # If there was any error during previous steps, the temp dir is left around.
+    # Doesn't seem like it's being re-used. Should we remove it in all cases?
+    rm -rf $TMP_DIR
+  fi
+}
+
+# Params: policy_id, skip_upload
+run_client () {
+  POLICY_ID=$1
+  load_config
+  ensure_scan_files
+  run_in_tmpdir $2
+}
+
+# MAIN ENTRY
+
+# This is Bash-only
+if [ "${@: -1}" == "--skip-upload" ]; then
+  SKIP_UPLOAD=true
+  set -- "${@:1:$(($#-1))}" # Remove the last argument
+else
+  SKIP_UPLOAD=false
+fi
+
+if [ $# -eq 1 ]; then
+  run_client $1 $SKIP_UPLOAD
+# Left around for compatibility
+elif [ $# -eq 2 ] && [ "$1" == "ds" ]; then
+  run_client $2 $SKIP_UPLOAD
+else
+  echo "Usage: $0 [ds] policy_id [--skip-upload]"
+  echo "  where policy_id is a key used in config file"
+  exit 2
+fi
