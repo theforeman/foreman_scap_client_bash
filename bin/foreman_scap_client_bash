@@ -190,12 +190,11 @@ bzip () {
 # TODO: Rewrite without using jq
 # Params: response
 print_upload_result () {
-  local parsed=$(echo $1 | jq .)
-  if [ -n "$parsed" ]; then
-    if [ -n "$(echo $parsed | jq .id)" ]; then
-      echo "Report uploaded, report id: $(echo $parsed | jq .id)"
+  if [ -n "$1" ]; then
+    if [ -n "$(echo $1 | jq .id)" ]; then
+      echo "Report uploaded, report id: $(echo $1 | jq .id)"
     else
-      echo "Report not uploaded from proxy to Foreman server, cause: $(echo $parsed | jq .result)"
+      echo "Report not uploaded from proxy to Foreman server, cause: $(echo $1 | jq .result)"
     fi
   fi
 }
@@ -207,7 +206,7 @@ upload () {
   if [ -n "$CIPHERS" ]; then
     curl_ssl_opts="$curl_ssl_opts --ciphers ${CIPHERS[@]}"
   fi
-  local curl_headers="--header 'Content-Type: text/xml' --header 'Content-Encoding: x-bzip2'"
+  local curl_headers='--header Content-Type:text/xml --header Content-Encoding:x-bzip2'
   if [ -n "$TIMEOUT" ]; then
     curl_headers="$curl_headers --max-time $TIMEOUT" # TODO: Change to --connect-timeout?
   fi
