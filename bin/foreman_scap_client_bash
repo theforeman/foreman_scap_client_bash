@@ -187,14 +187,13 @@ bzip () {
   fi
 }
 
-# TODO: Rewrite without using jq
 # Params: response
 print_upload_result () {
   if [ -n "$1" ]; then
-    if [ -n "$(echo $1 | jq .id)" ]; then
-      echo "Report uploaded, report id: $(echo $1 | jq .id)"
+    if [ -n "$(echo $1 | grep -Po '"[iI][dD]":\s*"\d+"')" ]; then
+      echo "Report uploaded, report id: $(echo $1 | grep -Po '"[iI][dD]":\s*"\d+"' | grep -Po '\d+')"
     else
-      echo "Report not uploaded from proxy to Foreman server, cause: $(echo $1 | jq .result)"
+      echo "Report not uploaded from proxy to Foreman server, cause: $(echo $1 | grep -Po '"result":\s*"\w+"' | cut -d\" -f4)"
     fi
   fi
 }
