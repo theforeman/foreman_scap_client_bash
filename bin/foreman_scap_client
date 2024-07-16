@@ -26,12 +26,12 @@ ensure_file () {
     local uri
     uri=$(download_uri "$2")
     echo "Download $3 xml from: $uri"
-    local curl_ssl_opts="--silent --show-error --cacert $CA_FILE --cert $HOST_CERTIFICATE --key $HOST_PRIVATE_KEY"
+    local curl_ssl_opts=(--silent --show-error --cacert "$CA_FILE" --cert "$HOST_CERTIFICATE" --key "$HOST_PRIVATE_KEY")
     if [ -n "$CIPHERS" ]; then
-      curl_ssl_opts="$curl_ssl_opts --ciphers ${CIPHERS[*]}"
+      curl_ssl_opts=("${curl_ssl_opts[@]}" --ciphers "${CIPHERS[*]}")
     fi
     local result
-    if ! result=$(curl "$curl_ssl_opts" --output "$1" "$uri" 2>&1); then
+    if ! result=$(curl "${curl_ssl_opts[@]}" --output "$1" "$uri" 2>&1); then
       echo "$3 is missing and download failed with error: $result"
       exit 5
     fi
@@ -201,17 +201,16 @@ upload () {
   local uri
   uri=$(upload_uri)
   echo "Uploading results to $uri"
-  local curl_ssl_opts="--silent --show-error --cacert $CA_FILE --cert $HOST_CERTIFICATE --key $HOST_PRIVATE_KEY"
+  local curl_ssl_opts=(--silent --show-error --cacert "$CA_FILE" --cert "$HOST_CERTIFICATE" --key "$HOST_PRIVATE_KEY")
   if [ -n "$CIPHERS" ]; then
-    curl_ssl_opts="$curl_ssl_opts --ciphers ${CIPHERS[*]}"
+    curl_ssl_opts=("${curl_ssl_opts[@]}" --ciphers "${CIPHERS[*]}")
   fi
-  local curl_headers='--header Content-Type:text/xml --header Content-Encoding:x-bzip2'
+  local curl_headers=(--header Content-Type:text/xml --header Content-Encoding:x-bzip2)
   if [ -n "$TIMEOUT" ]; then
-    curl_headers="$curl_headers --max-time $TIMEOUT" # TODO: Change to --connect-timeout?
+    curl_headers=("${curl_headers[@]}" --max-time "$TIMEOUT") # TODO: Change to --connect-timeout?
   fi
   local result
-  result=$(curl "$curl_ssl_opts" "$curl_headers" --data-binary "@$(results_bzip_path)" "$uri" 2>&1)
-  if ! result=$(curl "$curl_ssl_opts" "$curl_headers" --data-binary "@$(results_bzip_path)" "$uri" 2>&1); then
+  if ! result=$(curl "${curl_ssl_opts[@]}" "${curl_headers[@]}" --data-binary "@$(results_bzip_path)" "$uri" 2>&1); then
     echo "Upload failed: $result"
     exit 4
   fi
