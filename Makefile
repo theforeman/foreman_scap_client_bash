@@ -1,7 +1,7 @@
 PKGNAME := foreman_scap_client_bash
 
 ifeq ($(origin VERSION), undefined)
-	VERSION := 0.1.0
+	VERSION := 0.1.1
 endif
 
 dist-tar:
