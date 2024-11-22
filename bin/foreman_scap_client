@@ -46,32 +46,90 @@ ensure_scan_files () {
 }
 
 load_config () {
-  local config_file="/etc/foreman_scap_client/config"
+  local config_file="/etc/foreman_scap_client/config.yaml"
 
-  # Load config file
   if [ -f $config_file ]; then
-    # shellcheck disable=SC1090
-    source $config_file
+    eval "$(awk -v policy_id="$POLICY_ID" -F": " '
+    BEGIN { policy_found="false"; }
+    /^:server:/ {
+      print "SERVER=" "\"" $2 "\"";
+    }
+    /^:port:/ {
+      print "PORT=" "\"" $2 "\"";
+    }
+    /^:timeout:/ {
+      print "TIMEOUT=" "\"" $2 "\"";
+    }
+    /^:fetch_remote_resources:/ {
+      print "FETCH_REMOTE_RESOURCES=" "\"" $2 "\"";
+    }
+    /^:http_proxy_server:/ {
+      print "HTTP_PROXY_SERVER=" "\"" $2 "\"";
+    }
+    /^:http_proxy_port:/ {
+      print "HTTP_PROXY_PORT=" "\"" $2 "\"";
+    }
+    /^:ca_file:/ {
+      print "CA_FILE=" "\"" $2 "\"";
+    }
+    /^:host_certificate:/ {
+      print "HOST_CERTIFICATE=" "\"" $2 "\"";
+    }
+    /^:host_private_key:/ {
+      print "HOST_PRIVATE_KEY=" "\"" $2 "\"";
+    }
+    /^:ciphers:/ {
+      print "CIPHERS=" "\"" $2 "\"";
+    }
+
+    /^([0-9]+):/ {
+      sub(/:/, "");
+      current_policy_id=$1;
+      if (current_policy_id == policy_id) { policy_found="true"; }
+    }
+    /^  :profile:/ {
+      print "POLICY_" current_policy_id "_PROFILE=" "\"" $2 "\"";
+    }
+    /^  :content_path:/ {
+      print "POLICY_" current_policy_id "_CONTENT_PATH=" "\"" $2 "\"";
+    }
+    /^  :download_path:/ {
+      print "POLICY_" current_policy_id "_DOWNLOAD_PATH=" "\"" $2 "\"";
+    }
+    /^  :tailoring_path:/ {
+      print "POLICY_" current_policy_id "_TAILORING_PATH=" "\"" $2 "\"";
+    }
+    /^  :tailoring_download_path:/ {
+      print "POLICY_" current_policy_id "_TAILORING_DOWNLOAD_PATH=" "\"" $2 "\"";
+    }
+    END { print "POLICY_FOUND=" "\"" policy_found "\""; }
+    ' $config_file)"
   else
     echo "Config file could not be loaded"
     echo "$config_file does not exist"
     exit 1
   fi
 
-  # Set current policy values
-  # We expect the following variables to be set in the config file
-  # Absence of a variable will cause the script to exit
-  # For empty values, the variable must be set to an empty string
+  if [ "$POLICY_FOUND" == "false" ]; then
+    echo "Policy id $POLICY_ID not found"
+    exit 1
+  fi
+
+  # Remove brackets and spaces from ciphers list
+  # Turn ["cipher1", "cipher2"] into "cipher1,cipher2" or
+  # Turn ["cipher1:cipher2"] into "cipher1:cipher2"
+  CIPHERS=$(echo "$CIPHERS" | sed -e "s/^\[//" -e "s/\]$//" | tr -d ' ')
+
   POLICY_PROFILE="POLICY_${POLICY_ID}_PROFILE"
-  POLICY_PROFILE=${!POLICY_PROFILE?Policy id $POLICY_ID not found}
+  POLICY_PROFILE=${!POLICY_PROFILE}
   POLICY_CONTENT_PATH="POLICY_${POLICY_ID}_CONTENT_PATH"
-  POLICY_CONTENT_PATH=${!POLICY_CONTENT_PATH?Policy id $POLICY_ID not found}
+  POLICY_CONTENT_PATH=${!POLICY_CONTENT_PATH}
   POLICY_DOWNLOAD_PATH="POLICY_${POLICY_ID}_DOWNLOAD_PATH"
-  POLICY_DOWNLOAD_PATH=${!POLICY_DOWNLOAD_PATH?Policy id $POLICY_ID not found}
+  POLICY_DOWNLOAD_PATH=${!POLICY_DOWNLOAD_PATH}
   POLICY_TAILORING_PATH="POLICY_${POLICY_ID}_TAILORING_PATH"
-  POLICY_TAILORING_PATH=${!POLICY_TAILORING_PATH?Policy id $POLICY_ID not found}
-  POLICY_TAILORING_DOWNLOAD_PATH="POLICY_${POLICY_ID}_TAILORING_DOWLOAD_PATH"
-  POLICY_TAILORING_DOWNLOAD_PATH=${!POLICY_TAILORING_DOWNLOAD_PATH?Policy id $POLICY_ID not found}
+  POLICY_TAILORING_PATH=${!POLICY_TAILORING_PATH}
+  POLICY_TAILORING_DOWNLOAD_PATH="POLICY_${POLICY_ID}_TAILORING_DOWNLOAD_PATH"
+  POLICY_TAILORING_DOWNLOAD_PATH=${!POLICY_TAILORING_DOWNLOAD_PATH}
 }
 
 http_proxy_uri () {
