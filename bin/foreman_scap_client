@@ -250,7 +250,9 @@ print_upload_result () {
     if echo "$1" | grep -Poq '"[iI][dD]":\s*"\d+"'; then
       echo "Report uploaded, report id: $(echo "$1" | grep -Po '"[iI][dD]":\s*"\d+"' | grep -Po '\d+')"
     else
-      echo "Report not uploaded from proxy to Foreman server, cause: $(echo "$1" | grep -Po '"result":\s*"\w+"' | cut -d\" -f4)"
+      local msg
+      msg=$(echo "$1" | grep -Po '"result":(\s*["]|["])+.+("}|",)+' | sed 's/".$//' | sed 's/"result":"//' | sed 's/\\//g')
+      echo "Report not uploaded from proxy to Foreman server, cause: $msg"
     fi
   fi
 }
