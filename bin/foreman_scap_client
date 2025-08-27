@@ -45,65 +45,71 @@ ensure_scan_files () {
   fi
 }
 
-load_config () {
-  local config_file="/etc/foreman_scap_client/config.yaml"
+normalize_string_value() {
+  echo "$1" | sed -e "s/^'//" -e "s/'$//" | sed -e "s/^\s*//" -e "s/\s*$//"
+}
 
-  if [ -f $config_file ]; then
+load_config () {
+  # To use this function in tests with different config files
+  local config_file
+  config_file="$1"
+
+  if [ -f "$config_file" ]; then
     eval "$(awk -v policy_id="$POLICY_ID" -F": " '
     BEGIN { policy_found="false"; }
-    /^:server:/ {
+    /^:server\s*:/ {
       print "SERVER=" "\"" $2 "\"";
     }
-    /^:port:/ {
+    /^:port\s*:/ {
       print "PORT=" "\"" $2 "\"";
     }
-    /^:timeout:/ {
+    /^:timeout\s*:/ {
       print "TIMEOUT=" "\"" $2 "\"";
     }
-    /^:fetch_remote_resources:/ {
+    /^:fetch_remote_resources\s*:/ {
       print "FETCH_REMOTE_RESOURCES=" "\"" $2 "\"";
     }
-    /^:http_proxy_server:/ {
+    /^:http_proxy_server\s*:/ {
       print "HTTP_PROXY_SERVER=" "\"" $2 "\"";
     }
-    /^:http_proxy_port:/ {
+    /^:http_proxy_port\s*:/ {
       print "HTTP_PROXY_PORT=" "\"" $2 "\"";
     }
-    /^:ca_file:/ {
+    /^:ca_file\s*:/ {
       print "CA_FILE=" "\"" $2 "\"";
     }
-    /^:host_certificate:/ {
+    /^:host_certificate\s*:/ {
       print "HOST_CERTIFICATE=" "\"" $2 "\"";
     }
-    /^:host_private_key:/ {
+    /^:host_private_key\s*:/ {
       print "HOST_PRIVATE_KEY=" "\"" $2 "\"";
     }
-    /^:ciphers:/ {
+    /^:ciphers\s*:/ {
       print "CIPHERS=" "\"" $2 "\"";
     }
 
-    /^([0-9]+):/ {
-      sub(/:/, "");
+    /^([0-9]+)\s*:/ {
+      sub(/\s*:/, "");
       current_policy_id=$1;
       if (current_policy_id == policy_id) { policy_found="true"; }
     }
-    /^  :profile:/ {
+    /^  :profile\s*:/ {
       print "POLICY_" current_policy_id "_PROFILE=" "\"" $2 "\"";
     }
-    /^  :content_path:/ {
+    /^  :content_path\s*:/ {
       print "POLICY_" current_policy_id "_CONTENT_PATH=" "\"" $2 "\"";
     }
-    /^  :download_path:/ {
+    /^  :download_path\s*:/ {
       print "POLICY_" current_policy_id "_DOWNLOAD_PATH=" "\"" $2 "\"";
     }
-    /^  :tailoring_path:/ {
+    /^  :tailoring_path\s*:/ {
       print "POLICY_" current_policy_id "_TAILORING_PATH=" "\"" $2 "\"";
     }
-    /^  :tailoring_download_path:/ {
+    /^  :tailoring_download_path\s*:/ {
       print "POLICY_" current_policy_id "_TAILORING_DOWNLOAD_PATH=" "\"" $2 "\"";
     }
     END { print "POLICY_FOUND=" "\"" policy_found "\""; }
-    ' $config_file)"
+    ' "$config_file")"
   else
     echo "Config file could not be loaded"
     echo "$config_file does not exist"
@@ -115,21 +121,37 @@ load_config () {
     exit 1
   fi
 
+  # Remove surrounding spaces and single quotes for all values
+  SERVER=$(normalize_string_value "$SERVER")
+  PORT=$(normalize_string_value "$PORT")
+  TIMEOUT=$(normalize_string_value "$TIMEOUT")
+  FETCH_REMOTE_RESOURCES=$(normalize_string_value "$FETCH_REMOTE_RESOURCES")
+  HTTP_PROXY_SERVER=$(normalize_string_value "$HTTP_PROXY_SERVER")
+  HTTP_PROXY_PORT=$(normalize_string_value "$HTTP_PROXY_PORT")
+  CA_FILE=$(normalize_string_value "$CA_FILE")
+  HOST_CERTIFICATE=$(normalize_string_value "$HOST_CERTIFICATE")
+  HOST_PRIVATE_KEY=$(normalize_string_value "$HOST_PRIVATE_KEY")
+
   # Remove brackets and spaces from ciphers list
   # Turn ["cipher1", "cipher2"] into "cipher1,cipher2" or
   # Turn ["cipher1:cipher2"] into "cipher1:cipher2"
-  CIPHERS=$(echo "$CIPHERS" | sed -e "s/^\[//" -e "s/\]$//" | tr -d ' ')
+  CIPHERS=$(echo "$CIPHERS" | tr -d ' ' | sed -e "s/^\[//" -e "s/\]$//")
 
   POLICY_PROFILE="POLICY_${POLICY_ID}_PROFILE"
   POLICY_PROFILE=${!POLICY_PROFILE}
+  POLICY_PROFILE=$(normalize_string_value "$POLICY_PROFILE")
   POLICY_CONTENT_PATH="POLICY_${POLICY_ID}_CONTENT_PATH"
   POLICY_CONTENT_PATH=${!POLICY_CONTENT_PATH}
+  POLICY_CONTENT_PATH=$(normalize_string_value "$POLICY_CONTENT_PATH")
   POLICY_DOWNLOAD_PATH="POLICY_${POLICY_ID}_DOWNLOAD_PATH"
   POLICY_DOWNLOAD_PATH=${!POLICY_DOWNLOAD_PATH}
+  POLICY_DOWNLOAD_PATH=$(normalize_string_value "$POLICY_DOWNLOAD_PATH")
   POLICY_TAILORING_PATH="POLICY_${POLICY_ID}_TAILORING_PATH"
   POLICY_TAILORING_PATH=${!POLICY_TAILORING_PATH}
+  POLICY_TAILORING_PATH=$(normalize_string_value "$POLICY_TAILORING_PATH")
   POLICY_TAILORING_DOWNLOAD_PATH="POLICY_${POLICY_ID}_TAILORING_DOWNLOAD_PATH"
   POLICY_TAILORING_DOWNLOAD_PATH=${!POLICY_TAILORING_DOWNLOAD_PATH}
+  POLICY_TAILORING_DOWNLOAD_PATH=$(normalize_string_value "$POLICY_TAILORING_DOWNLOAD_PATH")
 }
 
 http_proxy_uri () {
@@ -294,7 +316,7 @@ run_in_tmpdir () {
 # Params: policy_id, skip_upload
 run_client () {
   POLICY_ID=$1
-  load_config
+  load_config "/etc/foreman_scap_client/config.yaml"
   ensure_scan_files
   run_in_tmpdir "$2"
 }
