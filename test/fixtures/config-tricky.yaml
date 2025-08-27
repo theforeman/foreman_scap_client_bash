@@ -1,0 +1,41 @@
+# Foreman proxy to which reports should be uploaded
+:server: "foreman_proxy.example.com"
+:port:    8443
+
+# Timeout for sending reports to proxy
+:timeout : 60
+
+# Should --fetch-remote-resources be added to `oscap xccdf eval` command
+:fetch_remote_resources: true
+
+# HTTP proxy server for downloading remote resources
+:http_proxy_server: 'foreman_http_proxy.example.com'
+:http_proxy_port: 8080
+
+# SSL specific options
+:ca_file:    /var/lib/puppet/ssl/certs/ca.pem
+# this client certificate, usually the same that puppet agent use
+:host_certificate: '  /var/lib/puppet/ssl/certs/client.example.com.pem '
+# this client private key, usually the same that puppet agent use
+:host_private_key:       "/var/lib/puppet/ssl/private_keys/client.example.com.pem"
+# optional cipher list if endpoints are hardened
+:ciphers :  [ "AES256-SHA:AES128-SHA:DES-CBC3-SHA"  ]
+
+# policy (key is id as in Foreman)
+1:
+
+  # which profile should be run on this client (use profile id)
+  # you can find out the profile id from ds file by running oscap info name-ds.xml
+  # leave empty for default profile
+  :profile    :
+  # ds input file
+  :content_path : "/usr/share/xml/scap/ssg/content/ssg-fedora-ds.xml"
+  :download_path: d test1
+    #:tailoring_path: ttest1
+    #:tailoring_download_path: tdtest1
+2 :
+  :profile: 'xccdf_org.ssgproject.content_profile_common'
+  :content_path: /usr/share/xml/scap/ssg/content/ssg-fedora-ds.xml
+  :download_path: 'dtest2'
+  :tailoring_path: "ttest2"
+  :tailoring_download_path: td test2
