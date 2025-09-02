@@ -19,6 +19,13 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Path to the binary and test config
 BINARY="$PROJECT_ROOT/bin/foreman_scap_client"
+
+# Check if config file argument is provided
+if [ -z "$1" ]; then
+    echo -e "${RED}Error:${NC} No config file specified."
+    echo "Usage: $0 <config_file>"
+    exit 1
+fi
 TEST_CONFIG="$SCRIPT_DIR/fixtures/$1"
 
 # Function to print test results
@@ -49,6 +56,10 @@ echo
 TEMP_FUNCTIONS=$(mktemp)
 # Get everything up to but not including main entry
 limit=$(grep -n "# MAIN ENTRY" "$BINARY" | cut -d: -f1)
+if [ -z "$limit" ]; then
+    echo -e "${RED}Error:${NC} '# MAIN ENTRY' pattern not found in $BINARY. Cannot extract functions."
+    exit 1
+fi
 head -n "$limit" "$BINARY" > "$TEMP_FUNCTIONS"
 
 echo "Sourcing functions from binary..."
