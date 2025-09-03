@@ -116,7 +116,7 @@ if load_config "$TEST_CONFIG"; then
     print_test_result "CA file parsing" "$expected" "$actual" "$result"
 
     # Test host certificate configuration
-    expected="/var/lib/puppet/ssl/certs/client.example.com.pem"
+    [ "$1" = "config-tricky.yaml" ] && expected="  /var/lib/puppet/ssl/certs/client.example.com.pem " || expected="/var/lib/puppet/ssl/certs/client.example.com.pem"
     actual="$HOST_CERTIFICATE"
     [ "$actual" = "$expected" ] && result="PASS" || result="FAIL"
     print_test_result "Host certificate parsing" "$expected" "$actual" "$result"

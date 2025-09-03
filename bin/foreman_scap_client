@@ -46,7 +46,7 @@ ensure_scan_files () {
 }
 
 normalize_string_value() {
-  echo "$1" | sed -e "s/^'//" -e "s/'$//" | sed -e "s/^\s*//" -e "s/\s*$//"
+  echo "$1" | sed -e "s/^\s*//" -e "s/\s*$//" | sed -e "s/^'//" -e "s/'$//"
 }
 
 load_config () {
