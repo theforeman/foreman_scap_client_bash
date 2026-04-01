@@ -39,3 +39,11 @@
   :download_path: 'dtest2'
   :tailoring_path: "ttest2"
   :tailoring_download_path: td test2
+3: 
+  :profile: xccdf_org.ssgproject.content_profile_cis_server_l1
+  :content_path: /var/lib/openscap/content/aa31f089ebb601930c023d3153ee433eca0af17dec0ea0787d54f959ea18680e.xml
+  # Download path
+  # A path to download SCAP content from proxy
+  :download_path: /compliance/policies/1/content/aa31f089ebb601930c023d3153ee433eca0af17dec0ea0787d54f959ea18680e
+  :tailoring_path: 
+  :tailoring_download_path: 
