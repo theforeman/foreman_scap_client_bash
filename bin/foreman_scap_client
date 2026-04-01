@@ -89,7 +89,7 @@ load_config () {
     }
 
     /^([0-9]+)\s*:/ {
-      sub(/\s*:/, "");
+      sub(/\s*:\s*/, "");
       current_policy_id=$1;
       if (current_policy_id == policy_id) { policy_found="true"; }
     }
